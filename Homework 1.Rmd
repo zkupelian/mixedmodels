@@ -1,0 +1,96 @@
+---
+title: "Homework 1"
+author: "Zo Kupelian"
+date: "2026-09-18"
+output: pdf_document
+---
+
+```{r}
+library(dplyr)
+```
+
+
+#1.Loading tlc dataset
+
+```{r}
+install.packages("haven")
+library(haven)
+
+tlc <- read_sas("tlc.sas7bdat")
+```
+
+#2. Select just the placebo group (trt = P)
+
+```{r}
+just_placebo <- tlc %>%
+  subset(trt == "P")
+```
+
+#3. Find mean and variance of Pb (lead) at y0, y1, y4, and y6
+
+```{r}
+#I could write a function and lapply through this, but this is simple and I'm lazy
+
+y0_mean <- mean(just_placebo$y0)
+y0_var <- var(just_placebo$y0)
+y0_mean
+y0_var
+
+y1_mean <- mean(just_placebo$y1)
+y1_var <- var(just_placebo$y1)
+y1_mean
+y1_var
+
+y4_mean <- mean(just_placebo$y4)
+y4_var <- var(just_placebo$y4)
+y4_mean
+y4_var
+
+y6_mean <- mean(just_placebo$y6)
+y6_var <- var(just_placebo$y6)
+y6_mean
+y6_var
+```
+
+#4. Find covariance matrix of y0, y1, y4, and y6
+
+```{r}
+
+```
+
+#5. Confidence interval for the difference of mu_1 - mu_0 from estimated means from step 3
+##a. Assuming covariance is 0
+
+```{r}
+
+```
+
+##b. Using covariance from step 4
+
+```{r}
+
+```
+
+#6. Two-sample t test comparing y1 and y0
+
+```{r}
+
+```
+
+#7. Paired t test of the change from week 0 to week 1 calculated in step 7
+
+```{r}
+
+```
+
+#8. Compare CI 
+
+A: R's means by hand covariance = 0
+B: R's means by hand covariance from step 4
+C: SAS's means by hand covariance = 0
+D: SAS's means by hand covariance from step 4
+E: From R's two-sample t test comparing y1 with y0
+F: From R's paired t test of change from week 0 to week 1
+G: From SAS's two-sample t test comparing y1 with y0
+H: From SAS's paired t test of change from week 0 to week 1
+
