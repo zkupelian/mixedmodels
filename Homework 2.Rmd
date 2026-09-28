@@ -1,0 +1,159 @@
+---
+title: "Homework 2"
+author: "Zo Kupelian"
+date: "2026-09-25"
+output: pdf_document
+---
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(nlme)
+```
+
+#1.Loading tlc dataset
+
+```{r}
+#install.packages("haven")
+library(haven)
+library(nlme)
+
+tlc <- read_sas("tlc.sas7bdat")
+```
+
+#2. Select just the placebo group (trt = P)
+
+```{r}
+just_placebo_long <- tlc %>%
+  subset(trt == "P") %>%
+  pivot_longer(starts_with("y"), names_to = "time", values_to = "y")
+just_placebo_long
+```
+
+#3. Fit incorrect general linear model
+
+```{r}
+wrong_model <- lm(y ~ relevel(as.factor(time), 4), data = just_placebo_long)
+summary(wrong_model)
+anova(wrong_model)
+```
+##R Results
+F statistic: 2.2088
+DOF: 196
+P-value: 0.088
+
+Fail to reject the null hypothesis; there's insufficient evidence to say that
+the means differ across the different time points.
+
+##SAS Results
+
+F statistic: 2.21
+DOF: 196
+P-value: 0.0884
+
+Fail to reject the null hypothesis; there's insufficient evidence to say that
+the means differ across the different time points.
+
+#4. Fit generalized linear model
+
+```{r}
+right_model <- gls(y ~ relevel(as.factor(time), 4),
+                   data = just_placebo_long,
+                   correlation = corSymm(form = ~ 1|id),
+                   weights = varIdent(form = ~1|time),
+                   method = "ML"
+                   )
+summary(right_model)
+anova(right_model)
+```
+##R Results
+
+F statistic: 10.2321
+DOF: 196
+P-value: <0.0001
+
+Reject the null hypothesis with the P value under 0.05, so there is evidence for
+the means differing across time points.
+
+##SAS Results
+
+F statistic: 10.23
+DOF: 196
+P-value: <0.001
+
+
+#5. Question about what a piece of output from SAS and nlme in R is about.
+
+For the nlme summary, I understood most of the output, but I wasn't entirely 
+sure what the "Formula: ~1 | time" output meant. 
+
+From SAS, the entire "Iterations History" table was something I didn't recognize.
+Iteration 1 or 0 didn't seem to match up to anything in the data or the tests
+we were running.
+
+#6. Revert whole dataset to include trt = A as well as P
+
+```{r}
+tlc_longer <- tlc %>%
+  pivot_longer(starts_with("y"), names_to = "time", values_to = "y")
+```
+
+#7. Fit model with both groups and follow the process listed in Canvas.
+
+```{r}
+#same thing as question 3, just with tlc_longer
+model1 <- gls(y ~ relevel(as.factor(time), 4) * relevel(as.factor(trt), 2), 
+              data = tlc_longer,
+              correlation = corSymm(form = ~ 1 | id),
+              weights = varIdent(form = ~ 1 | time),
+              method = "ML"
+              )
+
+summary(model1)
+anova(model1)
+```
+
+We're seeing significance, which means we reject the null hypothesis; there IS
+a difference over time. This trend over time is NOT parallel.
+
+```{r}
+# 1. Look at the parameter estimates from model1
+summary(model1)
+
+# This shows the coefficients for each time point and treatment group.
+# The interaction coefficients show how the treatment effect differs at each time point.
+
+# 2. Get predicted values for each group at each time point
+
+# Create a data frame with all combinations of time and treatment
+newdata <- expand.grid(
+    time = c("y0", "y1", "y4", "y6"),
+    trt = c("P", "A")
+)
+
+# Get predictions
+predictions <- predict(model1, newdata = newdata)
+
+# Combine predictions with the newdata
+results <- cbind(newdata, predicted_y = predictions)
+print(results)
+
+# 3. Visualize the trajectories
+ggplot(results, aes(x = time, y = predicted_y, color = trt, group = trt)) +
+    geom_point(size = 3) +
+    geom_line() +
+    labs(title = "Predicted Response Profiles by Treatment Group",
+         x = "Time Point",
+         y = "Mean Response",
+         color = "Treatment") +
+    theme_minimal()
+```
+
+The output of the SAS graph is very similar to the one here in R - the two 
+groups start out nearly identical at y0, but the active group sees a massive 
+dip, then a strong increase immediately after the treatment is applied. The 
+placebo group, on the other hand, has a slow decrease in the average response 
+rate of the group as time goes on.
+
+The groups are significantly different, which means the treatment does have an
+effect.
