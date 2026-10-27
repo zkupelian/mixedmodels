@@ -1,0 +1,77 @@
+---
+title: "Homework 5"
+author: "Zo Kupelian"
+date: "2026-10-27"
+output: pdf_document
+---
+
+# 1.
+
+```{r}
+# cov(Y1) and corr(Y1)
+
+Z1 <- matrix(c(1, 1, 1, 2, 1, 4, 1, 10), nrow = 4, ncol = 2, byrow = TRUE)
+
+G <- matrix(c(1, 0.1, 0.1, 1), nrow = 2, ncol = 2)
+
+sigma <- 1
+sigma_sq <- sigma^2
+
+# covariance matrix: V = Z * G * Z' + sigma^2 * I
+V1 <- Z1 %*% G %*% t(Z1) + sigma_sq * diag(4)
+
+cat("QUESTION 1:\n")
+cat("Covariance matrix cov(Y1):\n")
+print(round(V1, 4))
+
+# Calculate correlation matrix
+D <- diag(sqrt(diag(V1)))
+corr_Y1 <- solve(D) %*% V1 %*% solve(D)
+
+cat("\nCorrelation matrix corr(Y1):\n")
+print(round(corr_Y1, 4))
+```
+
+# 2.
+
+```{r}
+# same as before, Z2 is different
+
+Z2 <- matrix(c(1, 1.8, 1, 2, 1, 4, 1, 4.2), nrow = 4, ncol = 2, byrow = TRUE)
+
+# G and sigma same as Q1
+
+# Calculate covariance matrix
+V2 <- Z2 %*% G %*% t(Z2) + sigma_sq * diag(4)
+
+cat("QUESTION 2:\n")
+cat("Covariance matrix cov(Y2):\n")
+print(round(V2, 4))
+
+# Calculate correlation matrix
+D2 <- diag(sqrt(diag(V2)))
+corr_Y2 <- solve(D2) %*% V2 %*% solve(D2)
+
+cat("\nCorrelation matrix corr(Y2):\n")
+print(round(corr_Y2, 4))
+```
+
+# 3. 
+
+```{r}
+# compare and contrast correlations
+
+corr_Y1[1, 4]
+corr_Y1[2, 3]
+
+corr_Y2[1,4]
+corr_Y2[2,3]
+```
+Subject 1's visit 1 and 4 correlation is 0.6633, while their visit 2 and 3 
+correlation is 0.8752
+
+Subject 2's visit 1 and 4 correlation is 08553, while their visit 2 and 3 
+correlation is 0.8752
+
+Subject 1's time points are far more clustered than subject 2's, so subject 2's 
+correlation will be higher because of less time between visits.

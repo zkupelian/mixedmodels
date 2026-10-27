@@ -9,11 +9,10 @@ output: pdf_document
 library(dplyr)
 ```
 
-
 #1.Loading tlc dataset
 
 ```{r}
-install.packages("haven")
+#install.packages("haven")
 library(haven)
 
 tlc <- read_sas("tlc.sas7bdat")
@@ -55,42 +54,136 @@ y6_var
 #4. Find covariance matrix of y0, y1, y4, and y6
 
 ```{r}
+#selecting just the columns we're interested in
+cov_data <- just_placebo %>%
+  select(y0, y1, y4, y6)
 
+#getting the covariances
+cov_matrix <- cov(cov_data)
+cov_matrix
 ```
 
 #5. Confidence interval for the difference of mu_1 - mu_0 from estimated means from step 3
 ##a. Assuming covariance is 0
 
 ```{r}
+#By-hand calculation formatted in R
+y0_mean
+y1_mean
+y0_var
+y1_var
 
+n <- 50
+
+l <- (24.66 - 26.272) - 1.98*sqrt((29.82 + 25.24)/50)
+l
+
+u <-(24.66 - 26.272) + 1.98*sqrt((29.82 + 25.24)/50)
+u
+
+#these are the calculations, but I've put them in latex formatting for style too
 ```
+Assuming a covariance of 0:
+$CI = (\bar{y}_1 - \bar{y}_0) \pm t_{\alpha/2, df} \times \sqrt{ \frac{Var(y_1) + Var(y_0)}{n}}$
 
-##b. Using covariance from step 4
+$CI = (24.66 - 26.272) \pm 1.98 \times \sqrt{ \frac{29.82 + 25.24}{50}}$
+
+Lower bound:
+$CI = (24.66 - 26.272) - 1.98 \times \sqrt{ \frac{29.82 + 25.24}{50}}$
+$-3.6898$
+
+Upper bound:
+$CI = (24.66 - 26.272) + 1.98 \times \sqrt{ \frac{29.82 + 25.24}{50}}$
+$0.4658$
+
+Confidence interval: {-3.6898, 0.4658}
+
+##b. Using covariance from step 4 for mu_1 and mu_0
 
 ```{r}
+#just pulling the covariance we need here.
+cov_y1_y0 <- cov_matrix["y0", "y1"]
+cov_y1_y0
 
+v <- (24.66 - 26.272) - 1.98*sqrt(((29.82 + 25.24) - 2*(22.750))/50)
+v
+
+m <- (24.66 - 26.272) + 1.98*sqrt(((29.82 + 25.24) - 2*(22.750))/50)
+m
+
+#same as above, these are the calculations done "by hand", formatted below
 ```
+
+With this covariance:
+$CI = (\bar{y}_1 - \bar{y}_0) \pm t_{\alpha/2, df} \times \sqrt{ \frac{Var(y_1) + Var(y_0) - 2Cov(y_0, y_1)}{n}}$
+
+$CI = (24.66 - 26.272) \pm 1.98 \times \sqrt{ \frac{29.82 + 25.24 - 2(22.750)}{50}}$
+
+Lower bound:
+$CI = (24.66 - 26.272) - 1.98 \times \sqrt{ \frac{29.82 + 25.24 - 2(22.750)}{50}}$
+$-2.478$
+
+Upper bound:
+$CI = (24.66 - 26.272) + 1.98 \times \sqrt{ \frac{29.82 + 25.24 - 2(22.750)}{50}}$
+$-0.746$
+
+Confidence interval: {-2.478, -0.746}
 
 #6. Two-sample t test comparing y1 and y0
 
 ```{r}
-
+t.test(just_placebo$y1, just_placebo$y0, var.equal = TRUE)
 ```
+
+CI here is {-3.695, 0.471}
 
 #7. Paired t test of the change from week 0 to week 1 calculated in step 7
 
 ```{r}
-
+t.test(just_placebo$y1, just_placebo$y0, paired = TRUE)
 ```
+
+CI here is {-0.733, -2.491}
 
 #8. Compare CI 
 
-A: R's means by hand covariance = 0
-B: R's means by hand covariance from step 4
-C: SAS's means by hand covariance = 0
-D: SAS's means by hand covariance from step 4
-E: From R's two-sample t test comparing y1 with y0
+A: R's means, by hand, covariance = 0
+(-3.6896, 0.4658)
+
+B: R's means, by hand, covariance from step 4
+(-2.478, -0.746)
+
+C: SAS's means, by hand, covariance = 0
+(-3.6898, 0.4658)
+
+D: SAS's means, by hand, covariance from step 4
+(-2.478, -0.746)
+
+E: From R's two-sample t test, comparing y1 with y0
+(-3.695, 0.4706)
+
 F: From R's paired t test of change from week 0 to week 1
-G: From SAS's two-sample t test comparing y1 with y0
+(-2.491, -0.733)
+
+G: From SAS's two-sample t test, comparing y1 with y0
+(-0.4706, 3.6948)
+
 H: From SAS's paired t test of change from week 0 to week 1
+(-2.491, -0.733)
+
+Assuming covariance = 0 and doing a two-sample t test seem to result in the
+same output of confidence intervals, regardless of where the means come from
+or in which program the test is run; A, C, E, and G should all be effectively 
+the same, though obviously there has been some error in the calculation of G.
+The data processing in SAS of G results in the signs being flipped between the
+upper and lower bounds.
+
+Utilizing the covariance from step 4 in both SAS and R results in the same CIs 
+as well; B, D, F, and H are all as similar to each other as the previous group 
+was. They tend to skew a little smaller than the covariance = 0 group, though, 
+with the bounds staying below 0 while the two-sample and cov = 0 group is 
+wider and bridges 0.
+
+
+
 

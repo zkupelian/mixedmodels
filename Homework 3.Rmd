@@ -1,0 +1,280 @@
+---
+title: "Homework 3"
+author: "Zo Kupelian"
+date: "2026-10-05"
+output: pdf_document
+---
+
+```{r}
+library(nlme)
+library(ggplot2)
+library(dplyr)
+```
+
+# 1. load data
+```{r}
+# Read all lines and find where data starts
+all_lines <- readLines("vv.txt")
+
+# Find the line that starts the numeric data
+data_start <- which(grepl("^[[:space:]]*[0-9]+[[:space:]]+[0-9]", all_lines))[1]
+cat("Data starts at line:", data_start, "\n")
+
+# Read the data starting from the first data line
+vv <- read.table("vv.txt", skip = data_start - 1, header = FALSE)
+colnames(vv) <- c("id", "smoking", "time", "FEV1")
+
+# look at the data
+head(vv, 20)
+str(vv)
+summary(vv)
+dim(vv)
+
+#just for sanity
+cat("Number of subjects:", length(unique(vv$id)), "\n")
+cat("Total observations:", nrow(vv), "\n")
+```
+
+
+```{r}
+# make variables numeric and factor for easier analysis and group assignment
+vv$time_numeric <- as.numeric(vv$time)
+vv$smoking_label <- factor(vv$smoking,
+                           levels = c(0, 1),
+                           labels = c("Former Smoker", "Current Smoker"))
+
+# Sort by subject and time
+vv <- vv[order(vv$id, vv$time_numeric), ]
+
+# Create grouped data object for nlme, 
+vv_grouped <- groupedData(FEV1 ~ time_numeric | id, data = vv)
+head(vv_grouped)
+```
+
+# 2. make a trajectory plot
+```{r}
+#group by time and smoking status, and get mean, sd, sum, and se for FEV1
+trajectory_data <- vv %>%
+  group_by(time_numeric, smoking_label) %>%
+  summarize(
+    mean_fev1 = mean(FEV1, na.rm = TRUE),
+    sd_fev1 = sd(FEV1, na.rm = TRUE),
+    n_obs = sum(!is.na(FEV1)),
+    se_fev1 = sd_fev1 / sqrt(n_obs),
+    .groups = 'drop'
+  ) %>%
+  arrange(time_numeric) # in order
+head(trajectory_data)
+
+# Plot
+plot_trajectory <- ggplot(trajectory_data,
+                          aes(x = time_numeric,
+                              y = mean_fev1,
+                              color = smoking_label,     # easy to visualize
+                              shape = smoking_label,
+                              group = smoking_label)) +
+  geom_line(size = 1.2, alpha = 0.8) +                   # just aesthetics
+  geom_point(size = 4, alpha = 0.8) +
+  geom_errorbar(aes(ymin = mean_fev1 - se_fev1,
+                    ymax = mean_fev1 + se_fev1),
+                width = 0.3, size = 0.8, alpha = 0.6) +
+  labs(
+    title = "Mean FEV1 Over Time by Smoking Status",
+    x = "Time from Baseline (Years)",
+    y = "Mean FEV1 (L)",
+    color = "Smoking Status"
+  ) +
+  theme_minimal()
+
+print(plot_trajectory)
+```
+
+# 3. fit three models
+
+## Linear
+```{r}
+model_linear <- gls(FEV1 ~ time_numeric * smoking,
+                    data = vv_grouped,
+                    correlation = corCompSymm(form = ~ 1 | id),
+                    na.action = na.omit,
+                    method = "REML") # might need changing?
+print(summary(model_linear))
+
+
+ll_linear <- as.numeric(logLik(model_linear)) #log likelihood
+np_linear <- attr(logLik(model_linear), "df") #finding the number of parametrs
+
+#-155.8016 and 6, respectively
+```
+
+## Saturated
+```{r}
+model_saturated <- gls(FEV1 ~ factor(time_numeric) * smoking, #time is a factor
+                       data = vv_grouped,
+                       correlation = corCompSymm(form = ~ 1 | id),
+                       na.action = na.omit,
+                       method = "REML")
+print(summary(model_saturated))
+
+
+ll_saturated <- as.numeric(logLik(model_saturated))
+np_saturated <- attr(logLik(model_saturated), "df")
+
+#-164.0459 and 16, respectively
+```
+
+## Quadratic
+```{r}
+model_quadratic <- gls(FEV1 ~ (time_numeric + I(time_numeric^2)) * smoking,
+                       data = vv_grouped,
+                       correlation = corCompSymm(form = ~ 1 | id),
+                       na.action = na.omit,
+                       method = "REML")
+print(summary(model_quadratic))
+
+ll_quadratic <- as.numeric(logLik(model_quadratic))
+np_quadratic <- attr(logLik(model_quadratic), "df")
+
+#-169.4238 and 8, respectively
+```
+
+All of the models are compared to each other and have the outputs of that
+comparison formatted in the same way for eventual knitting to .pdf
+
+```{r}
+# LIKELIHOOD RATIO TESTS and ALPHA = 0.01
+
+# Linear vs Saturated
+lrt_1 <- -2 * (ll_linear - ll_saturated)
+df_1 <- np_saturated - np_linear
+p_1 <- 1 - pchisq(lrt_1, df = df_1)
+
+#this is just for printing out the results of lrt, df, and p for this test
+cat("LRT Statistic:", round(lrt_1, 4), "\n")
+cat("DF:", df_1, "\n")
+cat("P-value:", round(p_1, 6), "\n")
+
+#if else loops because why not
+if (p_1 < 0.01) {
+  cat("Decision: Linear INADEQUATE\n")
+  test1_adequate <- FALSE
+} else {
+  cat("Decision: Linear ADEQUATE\n")
+  test1_adequate <- TRUE
+}
+```
+
+
+
+```{r}
+# Quadratic vs Saturated
+cat("\n\nTEST 2: QUADRATIC vs SATURATED\n")
+lrt_2 <- -2 * (ll_quadratic - ll_saturated)
+df_2 <- np_saturated - np_quadratic
+p_2 <- 1 - pchisq(lrt_2, df = df_2)
+
+cat("LRT Statistic:", round(lrt_2, 4), "\n")
+cat("DF:", df_2, "\n")
+cat("P-value:", round(p_2, 6), "\n")
+
+if (p_2 < 0.01) {
+  cat("Decision: Quadratic INADEQUATE\n")
+  test2_adequate <- FALSE
+} else {
+  cat("Decision: Quadratic ADEQUATE\n")
+  test2_adequate <- TRUE
+}
+```
+
+
+
+```{r}
+# TEST 3: Linear vs Quadratic
+cat("\n\nTEST 3: LINEAR vs QUADRATIC\n")
+lrt_3 <- -2 * (ll_linear - ll_quadratic)
+df_3 <- np_quadratic - np_linear
+p_3 <- 1 - pchisq(lrt_3, df = df_3)
+
+cat("LRT Statistic:", round(lrt_3, 4), "\n")
+cat("DF:", df_3, "\n")
+cat("P-value:", round(p_3, 6), "\n")
+
+if (p_3 < 0.01) {
+  cat("Decision: Linear INADEQUATE vs Quadratic\n")
+} else {
+  cat("Decision: Linear ADEQUATE vs Quadratic\n")
+}
+```
+
+```{r}
+#model selection based on adequacy in previous chunk
+
+if (test1_adequate) {
+  selected_model <- model_linear
+  model_name <- "LINEAR"
+  cat("Selected: LINEAR MODEL\n")
+} else if (test2_adequate) {
+  selected_model <- model_quadratic
+  model_name <- "QUADRATIC"
+  cat("Selected: QUADRATIC MODEL\n")
+} else {
+  selected_model <- model_saturated
+  model_name <- "SATURATED"
+  cat("Selected: SATURATED MODEL\n")
+}
+
+cat("Model for predictions:", model_name, "\n\n")
+```
+
+The linear is the chosen model here!
+
+# 4. FEV1 change predictions
+```{r}
+# create prediction dataset
+pred_data <- expand.grid(
+  time_numeric = c(3, 6, 9, 15),
+  smoking = c(0, 1)
+)
+pred_data$smoking_label <- factor(pred_data$smoking,
+                                  levels = c(0, 1),
+                                  labels = c("Former Smoker", "Current Smoker"))
+
+# Get predictions
+pred_data$predicted_fev1 <- predict(selected_model,
+                                     newdata = pred_data,
+                                     level = 0)
+head(pred_data)
+```
+
+Dividng up by year 3 to 6, 9 to 15, never smokers, and between groups
+
+```{r}
+# year 3 to 6
+
+fev1_3_current <- pred_data$predicted_fev1[pred_data$time_numeric == 3 & pred_data$smoking == 1]
+fev1_6_current <- pred_data$predicted_fev1[pred_data$time_numeric == 6 &  pred_data$smoking == 1]
+change_3_6_current <- fev1_6_current - fev1_3_current
+
+fev1_3_former <- pred_data$predicted_fev1[pred_data$time_numeric == 3 & pred_data$smoking == 0]
+fev1_6_former <- pred_data$predicted_fev1[pred_data$time_numeric == 6 & pred_data$smoking == 0]
+change_3_6_former <- fev1_6_former - fev1_3_former
+
+cat("Year 3 to 6, Always-Smokers:  Change =", round(change_3_6_current, 4), "L\n")
+cat("Year 3 to 6, Never-Smokers:   Change =", round(change_3_6_former, 4), "L\n")
+```
+
+```{r}
+# year 9 to 15
+fev1_9_current <- pred_data$predicted_fev1[pred_data$time_numeric == 9 & pred_data$smoking == 1]
+fev1_15_current <- pred_data$predicted_fev1[pred_data$time_numeric == 15 & pred_data$smoking == 1]
+change_9_15_current <- fev1_15_current - fev1_9_current
+
+fev1_9_former <- pred_data$predicted_fev1[pred_data$time_numeric == 9 & pred_data$smoking == 0]
+fev1_15_former <- pred_data$predicted_fev1[pred_data$time_numeric == 15 & pred_data$smoking == 0]
+change_9_15_former <- fev1_15_former - fev1_9_former
+
+cat("Year 9 to 15, Always-Smokers:  Change =", round(change_9_15_current, 4), "L\n")
+cat("Year 9 to 15, Never-Smokers:   Change =", round(change_9_15_former, 4), "L\n")
+```
+
+
